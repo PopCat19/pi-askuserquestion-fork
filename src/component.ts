@@ -1,4 +1,4 @@
-import type { Theme } from "@mariozechner/pi-coding-agent";
+import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
   type Component,
   Editor,
@@ -8,7 +8,7 @@ import {
   type TUI,
   truncateToWidth,
   wrapTextWithAnsi,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import type { Option, Question, Result } from "./schema.ts";
 
 // ── TUILike ───────────────────────────────────────────────────────────────────
@@ -325,8 +325,9 @@ export class AskUserQuestionComponent implements Component {
     add(title);
     add("");
 
-    for (const q of this.questions) {
-      const state = this.states[this.questions.indexOf(q)];
+    for (let i = 0; i < this.questions.length; i++) {
+      const q = this.questions[i];
+      const state = this.states[i];
       const answer = this.getAnswerText(q, state);
       if (answer !== null) {
         add(
@@ -549,9 +550,14 @@ export class AskUserQuestionComponent implements Component {
         } else {
           // Empty text — clear any previously saved free-text answer
           state.freeTextValue = null;
-          // If nothing left selected either, un-confirm
-          const q = this.questions[this.activeTab];
-          if (q.multiSelect && state.selectedIndices.size === 0) {
+          // If nothing else is selected, un-confirm so Submit tab blocks correctly.
+          // Multi-select: un-confirm only if no boxes are checked.
+          // Single-select: un-confirm only if no option is selected.
+          if (q.multiSelect) {
+            if (state.selectedIndices.size === 0) {
+              state.confirmed = false;
+            }
+          } else if (state.selectedIndex === null) {
             state.confirmed = false;
           }
           this.exitEditMode(false);

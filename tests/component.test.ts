@@ -1,6 +1,6 @@
-import type { Theme } from "@mariozechner/pi-coding-agent";
-import { Key, matchesKey } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import type { Theme } from "@earendil-works/pi-coding-agent";
+import { Key, matchesKey } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 import { describe, expect, it } from "vitest";
 import { AskUserQuestionComponent, type TUILike } from "../src/component.ts";
 import {
@@ -537,6 +537,38 @@ describe("handleInput — free-text mode", () => {
     // Preview below "Type your own answer..." should be gone
     const lines = c.render(80);
     expect(lines.some((l) => l.includes("hello"))).toBe(false);
+  });
+
+  it("single-select: clearing previously confirmed free-text un-confirms the question", () => {
+    // Regression: clearing free-text in single-select used to leave confirmed=true
+    // with no answer, so Submit would proceed with a missing answer.
+    let resolved: Result | null = null;
+    const c = make([singleSelect, twoOptionsQ], (r) => {
+      resolved = r;
+    });
+    // Q1: open editor on "Type your own answer...", type, save (auto-confirm + advance)
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space);
+    for (const ch of "hello") c.handleInput(ch);
+    c.handleInput(INPUT.enter); // saves "hello", auto-advances to Q2
+
+    // Answer Q2 so Submit would otherwise be reachable.
+    c.handleInput(INPUT.enter); // single-select Enter on first option
+
+    // Go back to Q1, re-open editor, clear, save empty.
+    c.handleInput(INPUT.left);
+    for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
+    c.handleInput(INPUT.space);
+    for (let i = 0; i < 5; i++) c.handleInput("\x7f"); // backspace x5
+    c.handleInput(INPUT.enter); // empty -> clear & un-confirm
+
+    // Move to Submit tab and try to submit.
+    c.handleInput(INPUT.right);
+    c.handleInput(INPUT.right);
+    c.handleInput(INPUT.enter);
+
+    // Submission must be blocked because Q1 is no longer confirmed.
+    expect(resolved).toBeNull();
   });
 
   it("Enter with empty text in edit mode exits without confirming", () => {
