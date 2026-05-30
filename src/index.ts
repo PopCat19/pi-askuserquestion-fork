@@ -4,7 +4,60 @@ import { AskUserQuestionComponent } from "./component.ts";
 import { InputSchema, type Question, type Result } from "./schema.ts";
 import { validateUniqueness } from "./validate.ts";
 
+// ── Turn-tracking state ──
+
+let lastToolNames: string[] = [];
+let justHadUserTurn = false;
+
+const NON_TRIGGERING_TOOLS = new Set([
+  "read",
+  "write",
+  "edit",
+  "grep",
+  "glob",
+  "list_files",
+  "bash",
+  "ls",
+  "find",
+  "cat",
+  "head",
+  "tail",
+  "ask_user_question",
+]);
+
+const CLARIFICATION_NUDGE = `
+
+Before responding, pause and ask: is anything ambiguous, underspecified, or reliant on an assumption the user hasn't confirmed? If yes, call ask_user_question with 1–2 focused questions instead of guessing.`;
+
 export default function (pi: ExtensionAPI) {
+  // Track tool calls so we know what happened before each agent turn
+  pi.on("tool_call", async (event) => {
+    lastToolNames.push(event.name);
+  });
+
+  pi.on("turn_start", async () => {
+    lastToolNames = [];
+    justHadUserTurn = true;
+  });
+
+  // Inject clarification nudge after user messages and non-trivial tool calls
+  pi.on("before_agent_start", async (event, _ctx) => {
+    // After a user turn: always nudge
+    if (justHadUserTurn) {
+      justHadUserTurn = false;
+      return {
+        systemPrompt: (event.systemPrompt ?? "") + CLARIFICATION_NUDGE,
+      };
+    }
+
+    // After tool calls: nudge only if any tool was NOT a safe read/write/edit
+    const hasNonTrivial = lastToolNames.some(n => !NON_TRIGGERING_TOOLS.has(n));
+    if (hasNonTrivial) {
+      return {
+        systemPrompt: (event.systemPrompt ?? "") + CLARIFICATION_NUDGE,
+      };
+    }
+  });
   pi.registerTool({
     name: "ask_user_question",
     label: "Ask User",
