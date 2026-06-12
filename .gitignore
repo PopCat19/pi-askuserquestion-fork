@@ -2,3 +2,4 @@
 /node_modules/
 /.pi/
 /coverage/
+package-lock.json
