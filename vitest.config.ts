@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 
-const PI_NM = "/opt/homebrew/lib/node_modules/@mariozechner/pi-coding-agent/node_modules";
+const PI_NM =
+  "/opt/homebrew/lib/node_modules/@mariozechner/pi-coding-agent/node_modules";
 const PI_ROOT = "/opt/homebrew/lib/node_modules/@mariozechner/pi-coding-agent";
 
 export default defineConfig({

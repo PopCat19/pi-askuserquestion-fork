@@ -51,7 +51,9 @@ export default function (pi: ExtensionAPI) {
     }
 
     // After tool calls: nudge only if any tool was NOT a safe read/write/edit
-    const hasNonTrivial = lastToolNames.some(n => !NON_TRIGGERING_TOOLS.has(n));
+    const hasNonTrivial = lastToolNames.some(
+      (n) => !NON_TRIGGERING_TOOLS.has(n),
+    );
     if (hasNonTrivial) {
       return {
         systemPrompt: (event.systemPrompt ?? "") + CLARIFICATION_NUDGE,
