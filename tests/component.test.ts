@@ -7,6 +7,7 @@ import {
   InputSchema,
   OptionSchema,
   type Question,
+  QuestionInputSchema,
   QuestionSchema,
   type Result,
   ResultSchema,
@@ -1531,9 +1532,13 @@ describe("coverage — schema.ts", () => {
     expect(QuestionSchema.properties.options.maxItems).toBe(4);
   });
 
-  it("InputSchema constrains questions to 1–4", () => {
-    expect(InputSchema.properties.questions.minItems).toBe(1);
-    expect(InputSchema.properties.questions.maxItems).toBe(4);
+  it("InputSchema accepts loose questions (constraints enforced by autoFix)", () => {
+    expect(InputSchema.properties.questions).toBeDefined();
+    // No minItems/maxItems — loose schema delegates to autoFix
+    expect(InputSchema.properties.questions.minItems).toBeUndefined();
+    expect(InputSchema.properties.questions.maxItems).toBeUndefined();
+    // Items are QuestionInputSchema (header + multiSelect optional)
+    expect(InputSchema.properties.questions.items).toBe(QuestionInputSchema);
   });
 
   it("ResultSchema has questions, answers, cancelled", () => {

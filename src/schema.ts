@@ -1,6 +1,6 @@
 import { type Static, Type } from "typebox";
 
-// ── Input (what the LLM sends) ────────────────────────────────────────────────
+// ── Shared option type ────────────────────────────────────────────────────────
 
 export const OptionSchema = Type.Object({
   label: Type.String({
@@ -14,34 +14,53 @@ export const OptionSchema = Type.Object({
   ),
 });
 
-export const QuestionSchema = Type.Object({
+export type Option = Static<typeof OptionSchema>;
+
+// ── Loose input (what the LLM sends) ──────────────────────────────────────────
+//
+// Constraints are enforced by autoFix(), not the schema.
+// The LLM can send imperfect JSON — missing fields get defaults,
+// excess items get truncated, duplicates get deduplicated.
+// Warnings in the response teach the LLM to converge on correct usage.
+
+export const QuestionInputSchema = Type.Object({
   question: Type.String({
     description: "Full question text displayed to the user",
   }),
-  header: Type.String({
-    description:
-      "Short label used in the tab bar when multiple questions are shown. Max 12 characters.",
-  }),
+  header: Type.Optional(
+    Type.String({
+      description:
+        "Short label used in the tab bar when multiple questions are shown. Max 12 characters. Defaults to first 12 chars of question text if omitted.",
+    }),
+  ),
   options: Type.Array(OptionSchema, {
-    minItems: 2,
-    maxItems: 4,
     description: "Between 2 and 4 choices for the user to select from",
   }),
-  multiSelect: Type.Boolean({
-    description:
-      "When true the user may select multiple options. Answers are joined with ', '.",
-  }),
+  multiSelect: Type.Optional(
+    Type.Boolean({
+      description:
+        "When true the user may select multiple options. Answers are joined with ', '. Defaults to false.",
+    }),
+  ),
 });
 
 export const InputSchema = Type.Object({
-  questions: Type.Array(QuestionSchema, {
-    minItems: 1,
-    maxItems: 4,
-    description: "1 to 4 questions to ask the user",
+  questions: Type.Array(QuestionInputSchema, {
+    description: "1 to 32 questions to ask the user",
   }),
 });
 
-export type Option = Static<typeof OptionSchema>;
+export type QuestionInput = Static<typeof QuestionInputSchema>;
+
+// ── Strict question (after autoFix, what the component receives) ──────────────
+
+export const QuestionSchema = Type.Object({
+  question: Type.String(),
+  header: Type.String(),
+  options: Type.Array(OptionSchema, { minItems: 2, maxItems: 4 }),
+  multiSelect: Type.Boolean(),
+});
+
 export type Question = Static<typeof QuestionSchema>;
 
 // ── Output (details returned to the LLM and used in renderResult) ─────────────
