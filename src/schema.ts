@@ -4,8 +4,7 @@ import { type Static, Type } from "typebox";
 
 export const OptionSchema = Type.Object({
   label: Type.String({
-    description:
-      "Display label shown to the user and returned as the answer value",
+    description: "Display label shown to the user and returned as the answer value",
   }),
   description: Type.Optional(
     Type.String({
@@ -38,8 +37,7 @@ export const QuestionInputSchema = Type.Object({
   }),
   multiSelect: Type.Optional(
     Type.Boolean({
-      description:
-        "When true the user may select multiple options. Answers are joined with ', '. Defaults to false.",
+      description: "When true the user may select multiple options. Answers are joined with ', '. Defaults to false.",
     }),
   ),
 });
@@ -84,6 +82,13 @@ export const ResultSchema = Type.Object({
 
   // True when the user pressed Esc before submitting
   cancelled: Type.Boolean(),
+
+  // Optional free-text comment left by the user during review on the Submit tab
+  comment: Type.Optional(
+    Type.String({
+      description: "Optional free-text comment left by the user during review on the Submit tab",
+    }),
+  ),
 });
 
 export type Result = Static<typeof ResultSchema>;

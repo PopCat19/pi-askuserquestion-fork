@@ -24,9 +24,7 @@ export function autoFix(questions: QuestionInput[]): AutoFixResult {
   // 2. Truncate to MAX_QUESTIONS
   let fixed = nonEmpty;
   if (fixed.length > MAX_QUESTIONS) {
-    warnings.push(
-      `Truncated ${fixed.length - MAX_QUESTIONS} excess questions (max ${MAX_QUESTIONS})`,
-    );
+    warnings.push(`Truncated ${fixed.length - MAX_QUESTIONS} excess questions (max ${MAX_QUESTIONS})`);
     fixed = fixed.slice(0, MAX_QUESTIONS);
   }
 
@@ -35,9 +33,7 @@ export function autoFix(questions: QuestionInput[]): AutoFixResult {
   const deduped: QuestionInput[] = [];
   for (const q of fixed) {
     if (seenQuestions.has(q.question)) {
-      warnings.push(
-        `Duplicate question "${q.question.slice(0, 40)}" — kept first occurrence`,
-      );
+      warnings.push(`Duplicate question "${q.question.slice(0, 40)}" — kept first occurrence`);
       continue;
     }
     seenQuestions.add(q.question);
@@ -46,18 +42,12 @@ export function autoFix(questions: QuestionInput[]): AutoFixResult {
   fixed = deduped;
 
   // 4. Fix each question individually
-  const result: Question[] = fixed.map((q, i) =>
-    fixQuestion(q, i + 1, warnings),
-  );
+  const result: Question[] = fixed.map((q, i) => fixQuestion(q, i + 1, warnings));
 
   return { fixed: result, warnings };
 }
 
-function fixQuestion(
-  q: QuestionInput,
-  qNum: number,
-  warnings: string[],
-): Question {
+function fixQuestion(q: QuestionInput, qNum: number, warnings: string[]): Question {
   // Default header from question text
   let header = q.header?.trim();
   if (!header) {
@@ -78,9 +68,7 @@ function fixQuestion(
   const beforeFilter = options.length;
   options = options.filter((o) => o.label && o.label.trim() !== "");
   if (beforeFilter > options.length) {
-    warnings.push(
-      `Q${qNum}: ${beforeFilter - options.length} option(s) with empty label — removed`,
-    );
+    warnings.push(`Q${qNum}: ${beforeFilter - options.length} option(s) with empty label — removed`);
   }
 
   // Deduplicate option labels (keep first occurrence)
@@ -88,9 +76,7 @@ function fixQuestion(
   const dedupedOptions: typeof options = [];
   for (const o of options) {
     if (seenLabels.has(o.label)) {
-      warnings.push(
-        `Q${qNum}: duplicate option "${o.label}" — kept first occurrence`,
-      );
+      warnings.push(`Q${qNum}: duplicate option "${o.label}" — kept first occurrence`);
       continue;
     }
     seenLabels.add(o.label);
@@ -100,9 +86,7 @@ function fixQuestion(
 
   // Truncate to MAX_OPTIONS
   if (options.length > MAX_OPTIONS) {
-    warnings.push(
-      `Q${qNum}: ${options.length - MAX_OPTIONS} excess options — truncated to ${MAX_OPTIONS}`,
-    );
+    warnings.push(`Q${qNum}: ${options.length - MAX_OPTIONS} excess options — truncated to ${MAX_OPTIONS}`);
     options = options.slice(0, MAX_OPTIONS);
   }
 
@@ -113,9 +97,7 @@ function fixQuestion(
     for (let j = 0; j < needed && j < defaults.length; j++) {
       options.push({ label: defaults[j] });
     }
-    warnings.push(
-      `Q${qNum}: only ${options.length - needed} option(s) — added defaults to reach ${MIN_OPTIONS}`,
-    );
+    warnings.push(`Q${qNum}: only ${options.length - needed} option(s) — added defaults to reach ${MIN_OPTIONS}`);
   }
 
   return {

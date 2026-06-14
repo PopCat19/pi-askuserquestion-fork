@@ -51,9 +51,7 @@ export default function (pi: ExtensionAPI) {
     }
 
     // After tool calls: nudge only if any tool was NOT a safe read/write/edit
-    const hasNonTrivial = lastToolNames.some(
-      (n) => !NON_TRIGGERING_TOOLS.has(n),
-    );
+    const hasNonTrivial = lastToolNames.some((n) => !NON_TRIGGERING_TOOLS.has(n));
     if (hasNonTrivial) {
       return {
         systemPrompt: (event.systemPrompt ?? "") + CLARIFICATION_NUDGE,
@@ -64,6 +62,8 @@ export default function (pi: ExtensionAPI) {
     name: "ask_user_question",
     label: "Ask User",
     description: `Ask the user 1–32 clarifying questions before proceeding.
+LLMs can create as many queries as needed — don't hesitate to ask multiple focused questions.
+After the user reviews their answers on the Submit tab, they can optionally leave a free-text comment before submitting.
 Use this tool to:
 1. Clarify ambiguous instructions
 2. Get the user's preference between valid approaches
@@ -79,19 +79,14 @@ Always use this tool instead of asking questions in plain text — it provides a
     parameters: InputSchema,
 
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const { fixed: questions, warnings } = autoFix(
-        params.questions as QuestionInput[],
-      );
+      const { fixed: questions, warnings } = autoFix(params.questions as QuestionInput[]);
 
       if (questions.length === 0) {
         return {
           content: [
             {
               type: "text",
-              text: [
-                "Error: No valid questions after auto-fix.",
-                ...warnings,
-              ].join("\n"),
+              text: ["Error: No valid questions after auto-fix.", ...warnings].join("\n"),
             },
           ],
           details: {
@@ -104,9 +99,7 @@ Always use this tool instead of asking questions in plain text — it provides a
 
       if (!ctx.hasUI) {
         // Non-interactive session — deregister so the LLM won't try again
-        pi.setActiveTools(
-          pi.getActiveTools().filter((name) => name !== "ask_user_question"),
-        );
+        pi.setActiveTools(pi.getActiveTools().filter((name) => name !== "ask_user_question"));
         return {
           content: [
             {
@@ -123,8 +116,7 @@ Always use this tool instead of asking questions in plain text — it provides a
       }
 
       const result = await ctx.ui.custom<Result | null>(
-        (tui, theme, _kb, done) =>
-          new AskUserQuestionComponent(questions, tui, theme, done),
+        (tui, theme, _kb, done) => new AskUserQuestionComponent(questions, tui, theme, done),
       );
 
       if (result === null || result.cancelled) {
@@ -139,9 +131,10 @@ Always use this tool instead of asking questions in plain text — it provides a
       }
 
       const summaryLines = result.questions.map(
-        (q) =>
-          `"${q.question}" = "${result.answers[q.question] ?? "(no answer)"}"`,
+        (q) => `"${q.question}" = "${result.answers[q.question] ?? "(no answer)"}"`,
       );
+
+      const commentLine = result.comment ? `\nUser comment: "${result.comment}"` : "";
 
       const warningText =
         warnings.length > 0
@@ -150,7 +143,10 @@ Always use this tool instead of asking questions in plain text — it provides a
 
       return {
         content: [
-          { type: "text", text: warningText + summaryLines.join("\n") },
+          {
+            type: "text",
+            text: warningText + summaryLines.join("\n") + commentLine,
+          },
         ],
         details: result satisfies Result,
       };
@@ -158,15 +154,8 @@ Always use this tool instead of asking questions in plain text — it provides a
 
     renderCall(args, theme) {
       const questions = (args.questions ?? []) as QuestionInput[];
-      const topics = questions
-        .map((q) => q.header ?? q.question.slice(0, 12))
-        .join(", ");
-      return new TruncatedText(
-        theme.fg("toolTitle", theme.bold("ask user ")) +
-          theme.fg("muted", topics),
-        0,
-        0,
-      );
+      const topics = questions.map((q) => q.header ?? q.question.slice(0, 12)).join(", ");
+      return new TruncatedText(theme.fg("toolTitle", theme.bold("ask user ")) + theme.fg("muted", topics), 0, 0);
     },
 
     renderResult(result, _options, theme) {
@@ -187,13 +176,14 @@ Always use this tool instead of asking questions in plain text — it provides a
         const answer = details.answers[q.question] ?? "(no answer)";
         box.addChild(
           new TruncatedText(
-            theme.fg("success", "✓ ") +
-              theme.fg("accent", `${q.header}: `) +
-              theme.fg("text", answer),
+            theme.fg("success", "✓ ") + theme.fg("accent", `${q.header}: `) + theme.fg("text", answer),
             0,
             0,
           ),
         );
+      }
+      if (details.comment) {
+        box.addChild(new TruncatedText(theme.fg("muted", "💬 ") + theme.fg("text", details.comment), 0, 0));
       }
       return box;
     },

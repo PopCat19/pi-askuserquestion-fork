@@ -45,6 +45,8 @@ export class AskUserQuestionComponent implements Component {
   private states: QuestionState[];
   private activeTab: number = 0;
   private editor: Editor;
+  private commentEditor: Editor;
+  private comment: string = "";
 
   // Render cache
   private cachedWidth?: number;
@@ -53,12 +55,7 @@ export class AskUserQuestionComponent implements Component {
   // Guard: prevent done() being called more than once
   private _resolved: boolean = false;
 
-  constructor(
-    questions: Question[],
-    tui: TUILike,
-    theme: Theme,
-    done: (result: Result | null) => void,
-  ) {
+  constructor(questions: Question[], tui: TUILike, theme: Theme, done: (result: Result | null) => void) {
     this.questions = questions;
     this.tui = tui;
     this.theme = theme;
@@ -73,7 +70,7 @@ export class AskUserQuestionComponent implements Component {
       inEditMode: false,
     }));
 
-    const editorTheme: EditorTheme = {
+    const makeEditorTheme = (): EditorTheme => ({
       borderColor: (s) => theme.fg("muted", s),
       selectList: {
         selectedPrefix: (s) => theme.fg("accent", s),
@@ -82,11 +79,19 @@ export class AskUserQuestionComponent implements Component {
         scrollInfo: (s) => theme.fg("dim", s),
         noMatch: (s) => theme.fg("warning", s),
       },
-    };
+    });
 
-    this.editor = new Editor(tui as TUI, editorTheme);
+    this.editor = new Editor(tui as TUI, makeEditorTheme());
     this.editor.disableSubmit = true;
     this.editor.onChange = () => {
+      this.invalidate();
+      this.tui.requestRender();
+    };
+
+    this.commentEditor = new Editor(tui as TUI, makeEditorTheme());
+    this.commentEditor.disableSubmit = true;
+    this.commentEditor.onChange = () => {
+      this.comment = this.commentEditor.getText();
       this.invalidate();
       this.tui.requestRender();
     };
@@ -97,10 +102,7 @@ export class AskUserQuestionComponent implements Component {
   // ── Derived helpers ─────────────────────────────────────────────────────────
 
   private allOptions(q: Question): DisplayOption[] {
-    return [
-      ...q.options,
-      { label: "Type your own answer...", isOther: true as const },
-    ];
+    return [...q.options, { label: "Type your own answer...", isOther: true as const }];
   }
 
   private allConfirmed(): boolean {
@@ -203,21 +205,13 @@ export class AskUserQuestionComponent implements Component {
     add(parts.join(""));
   }
 
-  private renderQuestionBody(
-    q: Question,
-    state: QuestionState,
-    width: number,
-    add: (s: string) => void,
-  ): void {
+  private renderQuestionBody(q: Question, state: QuestionState, width: number, add: (s: string) => void): void {
     const t = this.theme;
     const opts = this.allOptions(q);
 
     // Question text (word-wrapped)
     {
-      const wrapped = wrapTextWithAnsi(
-        t.fg("text", ` ${q.question}`),
-        width - 2,
-      );
+      const wrapped = wrapTextWithAnsi(t.fg("text", ` ${q.question}`), width - 2);
       for (const line of wrapped) {
         add(line);
       }
@@ -245,23 +239,16 @@ export class AskUserQuestionComponent implements Component {
         if (q.multiSelect) {
           // Match multi-select box format: prefix + ' ' + box(3) + ' ' + label
           const box = hasFreeText ? t.fg("success", "[✓]") : t.fg("dim", "[ ]");
-          add(
-            `${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`,
-          );
+          add(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
         } else {
           // Match single-select format: prefix + ' ' + check(1) + ' ' + label
           const check = hasFreeText ? t.fg("success", "✓") : " ";
-          add(
-            `${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`,
-          );
+          add(`${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
         }
         // Preview of saved text below, no ✓ here
         if (hasFreeText) {
           const indent = q.multiSelect ? "       " : "     ";
-          const preview = truncateToWidth(
-            state.freeTextValue ?? "",
-            width - indent.length,
-          );
+          const preview = truncateToWidth(state.freeTextValue ?? "", width - indent.length);
           add(`${indent}${t.fg("dim", `"${preview}"`)}`);
         }
       } else {
@@ -275,10 +262,7 @@ export class AskUserQuestionComponent implements Component {
       // Description (if present, not for "Type your own answer...")
       if (!isOther && opt.description) {
         const indent = q.multiSelect ? "       " : "     ";
-        const wrapped = wrapTextWithAnsi(
-          t.fg("muted", opt.description),
-          width - indent.length,
-        );
+        const wrapped = wrapTextWithAnsi(t.fg("muted", opt.description), width - indent.length);
         for (const line of wrapped) {
           add(`${indent}${line}`);
         }
@@ -315,7 +299,7 @@ export class AskUserQuestionComponent implements Component {
     }
   }
 
-  private renderSubmitTab(_width: number, add: (s: string) => void): void {
+  private renderSubmitTab(width: number, add: (s: string) => void): void {
     const t = this.theme;
     const allDone = this.allConfirmed();
 
@@ -330,19 +314,22 @@ export class AskUserQuestionComponent implements Component {
       const state = this.states[i];
       const answer = this.getAnswerText(q, state);
       if (answer !== null) {
-        add(
-          t.fg("muted", ` ${truncateToWidth(q.header, 12)}: `) +
-            t.fg("text", answer),
-        );
+        add(t.fg("muted", ` ${truncateToWidth(q.header, 12)}: `) + t.fg("text", answer));
       } else {
-        add(
-          t.fg("dim", ` ${truncateToWidth(q.header, 12)}: `) +
-            t.fg("warning", "—"),
-        );
+        add(t.fg("dim", ` ${truncateToWidth(q.header, 12)}: `) + t.fg("warning", "—"));
       }
     }
 
     add("");
+
+    // Comment editor — always visible on Submit tab
+    add(t.fg("muted", " Leave a comment:"));
+    const commentLines = this.commentEditor.render(width - 4);
+    for (const line of commentLines) {
+      add(` ${line}`);
+    }
+    add("");
+
     if (allDone) {
       add(t.fg("success", " Press Enter to submit"));
     } else {
@@ -359,15 +346,12 @@ export class AskUserQuestionComponent implements Component {
   private getAnswerText(q: Question, state: QuestionState): string | null {
     if (!state.confirmed) return null;
     if (q.multiSelect) {
-      const labels = [...state.selectedIndices]
-        .sort((a, b) => a - b)
-        .map((idx) => q.options[idx].label);
+      const labels = [...state.selectedIndices].sort((a, b) => a - b).map((idx) => q.options[idx].label);
       if (state.freeTextValue !== null) labels.push(state.freeTextValue);
       return labels.join(", ");
     }
     if (state.freeTextValue !== null) return state.freeTextValue;
-    if (state.selectedIndex !== null)
-      return q.options[state.selectedIndex].label;
+    if (state.selectedIndex !== null) return q.options[state.selectedIndex].label;
     return null;
   }
 
@@ -480,9 +464,7 @@ export class AskUserQuestionComponent implements Component {
       const s = this.states[i];
       if (!s.confirmed) continue;
       if (q.multiSelect) {
-        const labels = [...s.selectedIndices]
-          .sort((a, b) => a - b)
-          .map((idx) => q.options[idx].label);
+        const labels = [...s.selectedIndices].sort((a, b) => a - b).map((idx) => q.options[idx].label);
         if (s.freeTextValue !== null) labels.push(s.freeTextValue);
         answers[q.question] = labels.join(", ");
       } else if (s.freeTextValue !== null) {
@@ -491,7 +473,13 @@ export class AskUserQuestionComponent implements Component {
         answers[q.question] = q.options[s.selectedIndex].label;
       }
     }
-    return { questions: this.questions, answers, cancelled: false };
+    const comment = this.comment.trim();
+    return {
+      questions: this.questions,
+      answers,
+      cancelled: false,
+      ...(comment ? { comment } : {}),
+    };
   }
 
   // ── handleInput() ────────────────────────────────────────────────────────────
@@ -523,6 +511,10 @@ export class AskUserQuestionComponent implements Component {
         this.tui.requestRender();
         return;
       }
+      // Route all other input to the comment editor
+      this.commentEditor.handleInput(data);
+      this.invalidate();
+      this.tui.requestRender();
       return;
     }
 

@@ -1,5 +1,6 @@
 {
   "entry": ["src/index.ts"],
   "project": ["src/**/*.ts"],
-  "ignoreExportsUsedInFile": true
+  "ignoreExportsUsedInFile": true,
+  "ignoreDependencies": ["@biomejs/biome", "jscpd"]
 }

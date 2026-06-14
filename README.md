@@ -1,6 +1,6 @@
 # pi-askuserquestion
 
-A [pi coding agent](https://github.com/badlogic/pi-mono) extension that gives the LLM a structured, interactive way to ask you questions — instead of guessing or rambling, the agent pauses, presents choices, and waits for your answer.
+A [pi coding agent](https://github.com/badlogic/pi-mono) extension that gives the LLM a structured, interactive way to ask you questions — instead of guessing or rambling, the agent pauses, presents choices, and waits for your answer. LLMs can create as many queries as needed (up to 32) — don't hesitate to ask multiple focused questions.
 
 Heavily inspired by the [`AskUserQuestion`](https://platform.claude.com/docs/en/agent-sdk/user-input#question-format) tool in Claude Code. Credit where it's due.
 
@@ -24,9 +24,11 @@ Heavily inspired by the [`AskUserQuestion`](https://platform.claude.com/docs/en/
 
 ![Free-text editor inline](docs/images/freetext.png)
 
-**Submit review**
+**Submit review (with optional comment)**
 
 ![Submit tab showing all answers](docs/images/submit.png)
+
+The Submit tab includes a free-text comment editor, so you can leave a note for the LLM alongside your answers.
 
 ---
 
@@ -80,7 +82,10 @@ Answers are returned as:
     [questionText]: "Selected Label"          // single-select
     [questionText]: "Label A, Label B"        // multi-select (joined)
     [questionText]: "user typed text"         // free-text
-  }
+  },
+  questions: Question[],                       // pass-through for renderResult
+  cancelled: false,
+  comment?: "optional free-text comment"       // from Submit tab editor
 }
 ```
 
@@ -99,7 +104,8 @@ Answers are returned as:
 | `Enter`          | Editor (empty)                | Clear saved text and close |
 | `Esc`            | Editor                        | Discard and close          |
 | `←` `→`          | Multi-question tab bar        | Switch tabs                |
-| `Enter`          | Submit tab (all answered)     | Submit all answers         |
+| any key          | Submit tab comment editor     | Type comment               |
+| `Enter`          | Submit tab (all answered)     | Submit answers + comment   |
 | `Esc`            | Anywhere                      | Cancel entire question     |
 
 ---
