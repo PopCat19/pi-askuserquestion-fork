@@ -13,61 +13,7 @@ the user has not confirmed? If YES or MAYBE, you MUST call ask_user_question
 with focused questions. DO NOT proceed with implicit assumptions. Guessing
 produces wasted work. The most helpful thing you can do is get it right.`;
 
-// Block write/edit/bash until at least one info tool fires per agent invocation.
-// Read-only bash commands (cd, pwd, find, rg, fd, cat, head, tail, etc.) are allowed through.
-// Once any info tool fires, the gate opens for the rest of the invocation. Resets at each user prompt.
-
-const MUTATION_TOOLS = new Set(["write", "edit", "bash"]);
-const INFO_TOOLS = new Set(["read", "ask_user_question", "grep", "find", "ls", "web_search", "fetch_content", "get_search_content"]);
-const SAFE_BASH_PREFIXES = ["cd", "pwd", "echo", "cat", "head", "tail", "wc", "which", "type", "env", "printenv", "whoami", "uname", "date", "clear", "tty", "find", "fd", "rg", "ls"];
-
-function isSafeBash(command: string | undefined): boolean {
-	if (!command) return false;
-	const firstWord = command.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
-	return SAFE_BASH_PREFIXES.includes(firstWord);
-}
-
-let gatheredInfo = false;
-
 export default function (pi: ExtensionAPI) {
-	// Gate reset: each user prompt starts a fresh agent invocation
-	pi.on("before_agent_start", () => {
-		gatheredInfo = false;
-	});
-
-	// Tool gate: block write/edit/bash until info is gathered.
-	// Safe bash commands (cd, pwd, cat, etc.) are allowed through.
-	// The block reason is designed to be unmissable so the LLM reads files
-	// or asks questions instead of retrying.
-	pi.on("tool_call", async (event) => {
-		if (gatheredInfo) return;
-
-		if (event.toolName === "bash" && isSafeBash(event.input?.command)) {
-			return;
-		}
-
-		if (MUTATION_TOOLS.has(event.toolName)) {
-			return {
-				block: true,
-				reason: [
-					"BLOCKED — You have not read any files or asked clarifying questions yet.",
-					"",
-					"DO NOT retry this tool call. It will be blocked again.",
-					"",
-					"Instead, do one of the following:",
-					"1. Call read on the relevant files to understand the codebase first",
-					"2. Call ask_user_question if anything is ambiguous or underspecified",
-					"",
-					"After an info tool runs successfully, write/edit/bash will be unblocked.",
-				].join("\n"),
-			};
-		}
-
-		if (INFO_TOOLS.has(event.toolName)) {
-			gatheredInfo = true;
-		}
-	});
-
 	// Inject clarification nudge before every agent turn, unconditionally
 	pi.on("before_agent_start", async (event, _ctx) => {
 		return {
