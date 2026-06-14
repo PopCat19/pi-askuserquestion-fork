@@ -15,11 +15,14 @@
     "extensions": ["./src/index.ts"]
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.4",
+    "@biomejs/biome": "^2.4.9",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.0.0",
     "@vitest/coverage-istanbul": "3.2.4",
-    "jscpd": "^4.0.8",
-    "knip": "^5.85.0",
+    "eslint": "^10.1.0",
+    "eslint-plugin-security": "^4.0.1",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.57.1",
     "vitest": "^3.0.0"
   },
   "peerDependencies": {
