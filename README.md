@@ -100,10 +100,11 @@ Answers are returned as:
 | `Space`          | Checkbox option               | Toggle selection           |
 | `Enter`          | Multi-select (with selection) | Confirm                    |
 | `Space` or `Tab` | "Type something..." row       | Open inline editor         |
+| `Ctrl+G`         | Inline editor or comment editor | Open in external editor (`$VISUAL` / `$EDITOR`) |
 | `Enter`          | Editor (with text)            | Save and close             |
 | `Enter`          | Editor (empty)                | Clear saved text and close |
 | `Esc`            | Editor                        | Discard and close          |
-| `←` `→`          | Multi-question tab bar        | Switch tabs                |
+| `←` `→`          | Tab bar                       | Switch tabs                |
 | any key          | Submit tab comment editor     | Type comment               |
 | `Enter`          | Submit tab (all answered)     | Submit answers + comment   |
 | `Esc`            | Anywhere                      | Cancel entire question     |
@@ -116,6 +117,8 @@ Answers are returned as:
 - **Auto-confirm on `→`** — navigating away from a multi-select question with selections auto-confirms it. Single-select requires explicit `Enter`.
 - **Free-text + checkboxes** — on multi-select questions, you can check boxes AND type custom text. Both are included in the answer, joined by `, `.
 - **Non-interactive sessions** — if called outside an interactive session (e.g. print mode), the tool disables itself for the rest of the session so the LLM won't retry.
+- **Single question review** — even one question goes through a Submit tab where you can review your answer and leave a comment.
+- **External editor** — press `Ctrl+G` while typing a free-text answer or comment to open it in your `$VISUAL` / `$EDITOR`.
 - **Undo free-text** — re-open the editor, clear the text, press `Enter`. The saved answer is cleared.
 - **Change your mind** — navigate back to any tab and re-answer. Confirmed state updates automatically.
 

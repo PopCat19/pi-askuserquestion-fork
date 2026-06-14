@@ -1,3 +1,7 @@
+import { execSync } from "node:child_process";
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { type Component, Editor, type EditorTheme, Key, matchesKey, type TUI, truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type { Option, Question, Result } from "./schema.ts";
@@ -100,10 +104,6 @@ export class AskUserQuestionComponent implements Component {
 		return this.states.every((s) => s.confirmed);
 	}
 
-	private get isSingle(): boolean {
-		return this.questions.length === 1;
-	}
-
 	private get totalTabs(): number {
 		return this.questions.length + 1; // questions + Submit
 	}
@@ -133,11 +133,9 @@ export class AskUserQuestionComponent implements Component {
 		// ── Top separator ──
 		add(t.fg("accent", "─".repeat(width)));
 
-		// ── Tab bar (multi-question only) ──
-		if (!this.isSingle) {
-			this.renderTabBar(width, add);
-			lines.push("");
-		}
+		// ── Tab bar ──
+		this.renderTabBar(width, add);
+		lines.push("");
 
 		// ── Question body or Submit tab ──
 		const q = this.questions[this.activeTab];
@@ -277,7 +275,7 @@ export class AskUserQuestionComponent implements Component {
 			add(t.fg("dim", " Enter submit · Esc back"));
 		} else {
 			const onOther = state.cursorIndex === opts.length - 1;
-			const tabHint = this.isSingle ? "" : " · ←→ switch tabs";
+			const tabHint = " · ←→ switch tabs";
 			let actionHint: string;
 			if (onOther) {
 				actionHint = "Space/Tab open editor";
@@ -423,10 +421,6 @@ export class AskUserQuestionComponent implements Component {
 	}
 
 	private advance(): void {
-		if (this.isSingle) {
-			this.submit();
-			return;
-		}
 		if (this.activeTab < this.questions.length - 1) {
 			this.activeTab++;
 		} else {
@@ -471,6 +465,27 @@ export class AskUserQuestionComponent implements Component {
 		};
 	}
 
+	// ── External editor ──────────────────────────────────────────────────────────
+
+	private openInExternalEditor(text: string): string {
+		const editorCmd = process.env.VISUAL || process.env.EDITOR || "vi";
+		const tmpPath = join(tmpdir(), `pi-askuser-${Date.now()}.txt`);
+		writeFileSync(tmpPath, text, "utf-8");
+		try {
+			execSync(`${editorCmd} ${tmpPath}`, { stdio: "inherit" });
+			if (existsSync(tmpPath)) {
+				return readFileSync(tmpPath, "utf-8");
+			}
+		} finally {
+			try {
+				unlinkSync(tmpPath);
+			} catch {
+				/* best effort */
+			}
+		}
+		return text;
+	}
+
 	// ── handleInput() ────────────────────────────────────────────────────────────
 
 	handleInput(data: string): void {
@@ -479,7 +494,7 @@ export class AskUserQuestionComponent implements Component {
 
 		// ── Submit tab ─────────────────────────────────────────────────────────────
 		// Check Submit tab FIRST — states[activeTab] is undefined when on Submit tab
-		if (!this.isSingle && this.activeTab === this.questions.length) {
+		if (this.activeTab === this.questions.length) {
 			if (matchesKey(data, Key.enter)) {
 				if (this.allConfirmed()) this.submit();
 				return;
@@ -500,6 +515,13 @@ export class AskUserQuestionComponent implements Component {
 				this.tui.requestRender();
 				return;
 			}
+			if (matchesKey(data, Key.ctrl("g"))) {
+				const newText = this.openInExternalEditor(this.commentEditor.getText());
+				this.commentEditor.setText(newText);
+				this.invalidate();
+				this.tui.requestRender();
+				return;
+			}
 			// Route all other input to the comment editor
 			this.commentEditor.handleInput(data);
 			this.invalidate();
@@ -512,6 +534,13 @@ export class AskUserQuestionComponent implements Component {
 
 		// ── Edit mode: route to inline editor ──────────────────────────────────────
 		if (state.inEditMode) {
+			if (matchesKey(data, Key.ctrl("g"))) {
+				const newText = this.openInExternalEditor(this.editor.getText());
+				this.editor.setText(newText);
+				this.invalidate();
+				this.tui.requestRender();
+				return;
+			}
 			if (matchesKey(data, Key.escape)) {
 				this.exitEditMode(false);
 				this.tui.requestRender();
@@ -558,7 +587,7 @@ export class AskUserQuestionComponent implements Component {
 			return;
 		}
 
-		if (!this.isSingle && matchesKey(data, Key.right)) {
+		if (matchesKey(data, Key.right)) {
 			this.autoConfirmIfAnswered();
 			this.activeTab = (this.activeTab + 1) % this.totalTabs;
 			this.invalidate();
@@ -566,7 +595,7 @@ export class AskUserQuestionComponent implements Component {
 			return;
 		}
 
-		if (!this.isSingle && matchesKey(data, Key.left)) {
+		if (matchesKey(data, Key.left)) {
 			this.autoConfirmIfAnswered();
 			this.activeTab = (this.activeTab - 1 + this.totalTabs) % this.totalTabs;
 			this.invalidate();

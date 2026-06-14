@@ -122,13 +122,10 @@ describe("render — single question", () => {
 		expect(lines.some((l) => l.includes("Battle-tested relational DB"))).toBe(true);
 	});
 
-	it("does not render a tab bar", () => {
+	it("renders tab bar with header and Submit for single question", () => {
 		const lines = make([singleSelect]).render(80);
-		// Tab bar would contain "Submit"
-		expect(lines.some((l) => l.includes("Submit"))).toBe(false);
-		// And would contain the header label alongside other tabs
-		// Single-question: header not shown in a tab-bar context
-		expect(lines.some((l) => l.includes("□") || l.includes("■"))).toBe(false);
+		expect(lines.some((l) => l.includes("Submit"))).toBe(true);
+		expect(lines.some((l) => l.includes("Database"))).toBe(true);
 	});
 
 	it("renders cursor > on first option initially", () => {
@@ -253,24 +250,26 @@ describe("handleInput — cursor navigation", () => {
 // ── handleInput — single-select confirm ──────────────────────────────────────
 
 describe("handleInput — single-select confirm", () => {
-	it("resolves with first option on immediate Enter", () => {
+	it("Enter on single question advances to Submit tab", () => {
 		let resolved: Result | null = null;
 		const c = make([singleSelect], (r) => {
 			resolved = r;
 		});
-		c.handleInput(INPUT.enter);
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		expect(resolved).toBeNull();
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved).not.toBeNull();
-		expect(resolved?.cancelled).toBe(false);
 		expect(resolved?.answers["Which database should we use?"]).toBe("PostgreSQL");
 	});
 
-	it("resolves with second option after ↓ Enter", () => {
+	it("resolves with second option after ↓ Enter + Submit", () => {
 		let resolved: Result | null = null;
 		const c = make([singleSelect], (r) => {
 			resolved = r;
 		});
 		c.handleInput(INPUT.down);
-		c.handleInput(INPUT.enter);
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved?.answers["Which database should we use?"]).toBe("SQLite");
 	});
 
@@ -279,7 +278,8 @@ describe("handleInput — single-select confirm", () => {
 		const c = make([singleSelect], (r) => {
 			resolved = r;
 		});
-		c.handleInput(INPUT.enter);
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved?.cancelled).toBe(false);
 	});
 
@@ -288,7 +288,8 @@ describe("handleInput — single-select confirm", () => {
 		const c = make([singleSelect], (r) => {
 			resolved = r;
 		});
-		c.handleInput(INPUT.enter);
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		c.handleInput(INPUT.enter); // submit
 		expect("Which database should we use?" in resolved!.answers).toBe(true);
 		expect("Database" in resolved!.answers).toBe(false);
 	});
@@ -298,7 +299,8 @@ describe("handleInput — single-select confirm", () => {
 		const c = make([singleSelect], (r) => {
 			resolved = r;
 		});
-		c.handleInput(INPUT.enter);
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved?.questions).toHaveLength(1);
 		expect(resolved?.questions[0].header).toBe("Database");
 	});
@@ -401,7 +403,9 @@ describe("handleInput — multi-select", () => {
 			resolved = r;
 		});
 		c.handleInput(INPUT.space); // select Auth
-		c.handleInput(INPUT.enter); // confirm
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		expect(resolved).toBeNull();
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved).not.toBeNull();
 		expect(resolved?.answers["Which features should we implement?"]).toBe("Auth");
 	});
@@ -415,7 +419,9 @@ describe("handleInput — multi-select", () => {
 		c.handleInput(INPUT.down);
 		c.handleInput(INPUT.down);
 		c.handleInput(INPUT.space); // select Export (index 2)
-		c.handleInput(INPUT.enter); // confirm
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		expect(resolved).toBeNull();
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved?.answers["Which features should we implement?"]).toBe("Auth, Export");
 	});
 
@@ -425,7 +431,9 @@ describe("handleInput — multi-select", () => {
 			resolved = r;
 		});
 		c.handleInput(INPUT.space);
-		c.handleInput(INPUT.enter);
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		expect(resolved).toBeNull();
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved?.cancelled).toBe(false);
 	});
 
@@ -435,7 +443,8 @@ describe("handleInput — multi-select", () => {
 			resolved = r;
 		});
 		c.handleInput(INPUT.space);
-		c.handleInput(INPUT.enter);
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		c.handleInput(INPUT.enter); // submit
 		expect("Which features should we implement?" in resolved!.answers).toBe(true);
 	});
 });
@@ -553,7 +562,9 @@ describe("handleInput — free-text mode", () => {
 		for (let i = 0; i < 10; i++) c.handleInput(INPUT.down);
 		c.handleInput(INPUT.space); // open editor
 		for (const ch of "hello") c.handleInput(ch);
-		c.handleInput(INPUT.enter); // confirm
+		c.handleInput(INPUT.enter); // save free-text — auto-confirms (has freeTextValue), advances to Submit
+		expect(resolved).toBeNull();
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved).not.toBeNull();
 		expect(resolved?.cancelled).toBe(false);
 		expect(resolved?.answers["Which database should we use?"]).toBe("hello");
@@ -712,13 +723,14 @@ describe("full round-trip", () => {
 		expect(resolved?.cancelled).toBe(false);
 	});
 
-	it("single question confirms immediately without Submit tab", () => {
+	it("single question uses Submit tab — Enter confirms then Enter submits", () => {
 		let resolved: Result | null = null;
 		const c = make([singleSelect], (r) => {
 			resolved = r;
 		});
-		c.handleInput(INPUT.enter);
-		// Should resolve immediately — no Submit tab needed
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		expect(resolved).toBeNull(); // not resolved yet
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved).not.toBeNull();
 	});
 
@@ -749,7 +761,9 @@ describe("multi-select + free-text combined", () => {
 		c.handleInput(INPUT.enter); // save free-text, return to options (cursor still on Type your own answer...)
 		// Move cursor to a real option, then confirm
 		c.handleInput(INPUT.up); // cursor on Export (index 2)
-		c.handleInput(INPUT.enter); // confirm (Auth selected + free-text saved)
+		c.handleInput(INPUT.enter); // confirm (Auth selected + free-text saved) -> Submit
+		expect(resolved).toBeNull();
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved?.answers["Which features should we implement?"]).toBe("Auth, mytext");
 	});
 
@@ -763,7 +777,9 @@ describe("multi-select + free-text combined", () => {
 		for (const ch of "hello") c.handleInput(ch);
 		c.handleInput(INPUT.enter); // save free-text, back to options
 		// cursor still on Type your own answer... — Enter should confirm now
-		c.handleInput(INPUT.enter);
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		expect(resolved).toBeNull();
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved).not.toBeNull();
 		expect(resolved?.answers["Which features should we implement?"]).toBe("hello");
 	});
@@ -779,7 +795,9 @@ describe("multi-select + free-text combined", () => {
 		c.handleInput(INPUT.enter); // save free-text, return to options
 		// Move cursor off "Type your own answer..." to a regular option, then confirm
 		c.handleInput(INPUT.up);
-		c.handleInput(INPUT.enter); // confirm (freeTextValue set, no checkboxes)
+		c.handleInput(INPUT.enter); // confirm (freeTextValue set, no checkboxes) -> Submit
+		expect(resolved).toBeNull();
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved?.answers["Which features should we implement?"]).toBe("onlytext");
 	});
 
@@ -901,9 +919,16 @@ describe("single-select: free-text then pick regular option", () => {
 		for (let i = 0; i < 10; i++) c.handleInput(INPUT.down); // cursor on Type your own answer...
 		c.handleInput(INPUT.space); // open editor
 		for (const ch of "mytext") c.handleInput(ch);
-		c.handleInput(INPUT.enter); // confirm free-text — resolves for single question
-		// For this test we need a two-question setup so we can navigate back
+		c.handleInput(INPUT.enter); // save free-text — auto-confirms, advances to Submit
+		// On Submit tab — navigate back to Q1 to change answer
+		expect(resolved).toBeNull();
+		c.handleInput(INPUT.left); // ← from Submit wraps to Q1
+		// Move cursor to first real option and confirm
+		for (let i = 0; i < 4; i++) c.handleInput(INPUT.up); // cursor on PostgreSQL
+		c.handleInput(INPUT.enter); // select PostgreSQL (Q1 now confirmed, advance to Submit)
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved).not.toBeNull();
+		expect(resolved?.answers["Which database should we use?"]).toBe("PostgreSQL");
 	});
 
 	it("typing free-text clears the ✓ on the previously selected regular option", () => {
@@ -1026,7 +1051,8 @@ describe("edge cases", () => {
 		c.handleInput(INPUT.escape); // exit WITHOUT saving
 		// Navigate back to option 1, confirm
 		for (let i = 0; i < 10; i++) c.handleInput(INPUT.up);
-		c.handleInput(INPUT.enter);
+		c.handleInput(INPUT.enter); // confirm PostgreSQL -> Submit
+		c.handleInput(INPUT.enter); // submit
 		expect(resolved?.answers["Which database should we use?"]).toBe("PostgreSQL");
 	});
 
@@ -1036,7 +1062,9 @@ describe("edge cases", () => {
 			count++;
 		});
 		c.handleInput(INPUT.space);
-		c.handleInput(INPUT.enter);
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		expect(count).toBe(0);
+		c.handleInput(INPUT.enter); // submit
 		expect(count).toBe(1);
 	});
 
@@ -1583,7 +1611,8 @@ describe("coverage — component.ts gaps", () => {
 		const c = make([singleSelect], () => {
 			count++;
 		});
-		c.handleInput(INPUT.enter); // resolve
+		c.handleInput(INPUT.enter); // confirm -> Submit
+		c.handleInput(INPUT.enter); // submit (resolves)
 		// All subsequent inputs are no-ops
 		c.handleInput(INPUT.enter);
 		c.handleInput(INPUT.escape);
