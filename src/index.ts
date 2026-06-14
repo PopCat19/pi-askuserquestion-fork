@@ -4,46 +4,28 @@ import { autoFix } from "./auto-fix.ts";
 import { AskUserQuestionComponent } from "./component.ts";
 import { InputSchema, type QuestionInput, type Result } from "./schema.ts";
 
-// ── Turn-tracking state ──
-
-let lastToolNames: string[] = [];
-let justHadUserTurn = false;
-
-const NON_TRIGGERING_TOOLS = new Set(["read", "write", "edit", "grep", "glob", "list_files", "bash", "ls", "find", "cat", "head", "tail", "ask_user_question"]);
-
 const CLARIFICATION_NUDGE = `
 
-Before responding, pause and ask: is anything ambiguous, underspecified, or reliant on an assumption the user hasn't confirmed? If yes, call ask_user_question with focused questions instead of guessing.`;
+## HARD RULE: CLARIFY BEFORE PROCEEDING
+
+Before EVERY response — without exception — pause and ask:
+
+Is anything ambiguous, underspecified, or reliant on an assumption the user has not confirmed?
+
+If the answer is YES or MAYBE, you MUST call \`ask_user_question\` with focused questions instead of guessing.
+
+DO NOT proceed with implicit assumptions. DO NOT fill in gaps silently. These lead to wasted work on things the user did not actually want. If you think you know what they mean — verify. If you think it doesn't matter — it might. Ask.
+
+This rule overrides all instincts to be helpful by guessing. The most helpful thing you can do is get it right.`;
 
 export default function (pi: ExtensionAPI) {
-	// Track tool calls so we know what happened before each agent turn
-	pi.on("tool_call", async (event) => {
-		lastToolNames.push(event.name);
-	});
-
-	pi.on("turn_start", async () => {
-		lastToolNames = [];
-		justHadUserTurn = true;
-	});
-
-	// Inject clarification nudge after user messages and non-trivial tool calls
+	// Inject clarification nudge before every agent turn, unconditionally
 	pi.on("before_agent_start", async (event, _ctx) => {
-		// After a user turn: always nudge
-		if (justHadUserTurn) {
-			justHadUserTurn = false;
-			return {
-				systemPrompt: (event.systemPrompt ?? "") + CLARIFICATION_NUDGE,
-			};
-		}
-
-		// After tool calls: nudge only if any tool was NOT a safe read/write/edit
-		const hasNonTrivial = lastToolNames.some((n) => !NON_TRIGGERING_TOOLS.has(n));
-		if (hasNonTrivial) {
-			return {
-				systemPrompt: (event.systemPrompt ?? "") + CLARIFICATION_NUDGE,
-			};
-		}
+		return {
+			systemPrompt: (event.systemPrompt ?? "") + CLARIFICATION_NUDGE,
+		};
 	});
+
 	pi.registerTool({
 		name: "ask_user_question",
 		label: "Ask User",
@@ -84,7 +66,6 @@ Always use this tool instead of asking questions in plain text — it provides a
 			}
 
 			if (!ctx.hasUI) {
-				// Non-interactive session — deregister so the LLM won't try again
 				pi.setActiveTools(pi.getActiveTools().filter((name) => name !== "ask_user_question"));
 				return {
 					content: [
@@ -149,7 +130,6 @@ Always use this tool instead of asking questions in plain text — it provides a
 				return new TruncatedText(theme.fg("warning", "Cancelled"), 0, 0);
 			}
 
-			// One TruncatedText per question — each line item truncated independently
 			const box = new Box(0, 0);
 			for (const q of details.questions) {
 				const answer = details.answers[q.question] ?? "(no answer)";
