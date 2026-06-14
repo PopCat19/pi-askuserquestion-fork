@@ -18,7 +18,39 @@ DO NOT proceed with implicit assumptions. DO NOT fill in gaps silently. These le
 
 This rule overrides all instincts to be helpful by guessing. The most helpful thing you can do is get it right.`;
 
+// ── Gate: block write/edit/bash until at least one info tool fires per agent invocation ──
+//
+// An "info tool" is read, ask_user_question, grep, ls, web_search, or their variants.
+// Once any info tool fires in a given agent run, the gate opens and stays open
+// for all subsequent turns within that invocation. It resets at the next user prompt.
+
+const MUTATION_TOOLS = new Set(["write", "edit", "bash"]);
+const INFO_TOOLS = new Set(["read", "ask_user_question", "grep", "find", "ls", "web_search", "fetch_content", "get_search_content"]);
+
+let gatheredInfo = false;
+
 export default function (pi: ExtensionAPI) {
+	// ── Gate reset: each user prompt starts a fresh agent invocation ──
+	pi.on("before_agent_start", () => {
+		gatheredInfo = false;
+	});
+
+	// ── Tool gate: block write/edit/bash until info is gathered ──
+	pi.on("tool_call", async (event) => {
+		if (gatheredInfo) return;
+
+		if (MUTATION_TOOLS.has(event.toolName)) {
+			return {
+				block: true,
+				reason: "You have not read any files or asked clarifying questions. Read the relevant code first, or call ask_user_question if anything is ambiguous. Jumping straight to edits with implicit assumptions wastes time.",
+			};
+		}
+
+		if (INFO_TOOLS.has(event.toolName)) {
+			gatheredInfo = true;
+		}
+	});
+
 	// Inject clarification nudge before every agent turn, unconditionally
 	pi.on("before_agent_start", async (event, _ctx) => {
 		return {
