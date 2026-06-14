@@ -14,12 +14,12 @@ with focused questions. DO NOT proceed with implicit assumptions. Guessing
 produces wasted work. The most helpful thing you can do is get it right.`;
 
 // Block write/edit/bash until at least one info tool fires per agent invocation.
-// Read-only bash commands (cd, pwd, echo, cat, head, tail, which, type, env, uname, date, whoami) are allowed through.
+// Read-only bash commands (cd, pwd, find, rg, fd, cat, head, tail, etc.) are allowed through.
 // Once any info tool fires, the gate opens for the rest of the invocation. Resets at each user prompt.
 
 const MUTATION_TOOLS = new Set(["write", "edit", "bash"]);
 const INFO_TOOLS = new Set(["read", "ask_user_question", "grep", "find", "ls", "web_search", "fetch_content", "get_search_content"]);
-const SAFE_BASH_PREFIXES = ["cd", "pwd", "echo", "cat", "head", "tail", "wc", "which", "type", "env", "printenv", "whoami", "uname", "date", "clear", "tty"];
+const SAFE_BASH_PREFIXES = ["cd", "pwd", "echo", "cat", "head", "tail", "wc", "which", "type", "env", "printenv", "whoami", "uname", "date", "clear", "tty", "find", "fd", "rg", "ls"];
 
 function isSafeBash(command: string | undefined): boolean {
 	if (!command) return false;
