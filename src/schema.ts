@@ -33,7 +33,7 @@ export const QuestionInputSchema = Type.Object({
 		}),
 	),
 	options: Type.Array(OptionSchema, {
-		description: "Between 2 and 4 choices for the user to select from",
+		description: "2 or more choices for the user to select from",
 	}),
 	multiSelect: Type.Optional(
 		Type.Boolean({
@@ -44,7 +44,7 @@ export const QuestionInputSchema = Type.Object({
 
 export const InputSchema = Type.Object({
 	questions: Type.Array(QuestionInputSchema, {
-		description: "1 to 32 questions to ask the user",
+		description: "1 or more questions to ask the user",
 	}),
 });
 
@@ -55,7 +55,7 @@ export type QuestionInput = Static<typeof QuestionInputSchema>;
 export const QuestionSchema = Type.Object({
 	question: Type.String(),
 	header: Type.String(),
-	options: Type.Array(OptionSchema, { minItems: 2, maxItems: 4 }),
+	options: Type.Array(OptionSchema, { minItems: 2 }),
 	multiSelect: Type.Boolean(),
 });
 

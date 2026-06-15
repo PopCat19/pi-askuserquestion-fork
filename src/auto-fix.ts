@@ -1,7 +1,5 @@
 import type { Question, QuestionInput } from "./schema.ts";
 
-const MAX_QUESTIONS = 32;
-const MAX_OPTIONS = 4;
 const MIN_OPTIONS = 2;
 
 export interface AutoFixResult {
@@ -21,17 +19,10 @@ export function autoFix(questions: QuestionInput[]): AutoFixResult {
 		return true;
 	});
 
-	// 2. Truncate to MAX_QUESTIONS
-	let fixed = nonEmpty;
-	if (fixed.length > MAX_QUESTIONS) {
-		warnings.push(`Truncated ${fixed.length - MAX_QUESTIONS} excess questions (max ${MAX_QUESTIONS})`);
-		fixed = fixed.slice(0, MAX_QUESTIONS);
-	}
-
-	// 3. Deduplicate question texts (keep first occurrence)
+	// 2. Deduplicate question texts (keep first occurrence)
 	const seenQuestions = new Set<string>();
 	const deduped: QuestionInput[] = [];
-	for (const q of fixed) {
+	for (const q of nonEmpty) {
 		if (seenQuestions.has(q.question)) {
 			warnings.push(`Duplicate question "${q.question.slice(0, 40)}" — kept first occurrence`);
 			continue;
@@ -39,10 +30,9 @@ export function autoFix(questions: QuestionInput[]): AutoFixResult {
 		seenQuestions.add(q.question);
 		deduped.push(q);
 	}
-	fixed = deduped;
 
-	// 4. Fix each question individually
-	const result: Question[] = fixed.map((q, i) => fixQuestion(q, i + 1, warnings));
+	// 3. Fix each question individually
+	const result: Question[] = deduped.map((q, i) => fixQuestion(q, i + 1, warnings));
 
 	return { fixed: result, warnings };
 }
@@ -83,12 +73,6 @@ function fixQuestion(q: QuestionInput, qNum: number, warnings: string[]): Questi
 		dedupedOptions.push(o);
 	}
 	options = dedupedOptions;
-
-	// Truncate to MAX_OPTIONS
-	if (options.length > MAX_OPTIONS) {
-		warnings.push(`Q${qNum}: ${options.length - MAX_OPTIONS} excess options — truncated to ${MAX_OPTIONS}`);
-		options = options.slice(0, MAX_OPTIONS);
-	}
 
 	// Pad to MIN_OPTIONS with generic defaults
 	if (options.length < MIN_OPTIONS) {

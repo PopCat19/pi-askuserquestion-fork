@@ -10,6 +10,7 @@ import type { Option, Question, Result } from "./schema.ts";
 // Minimal interface satisfied by both the real TUI and a test stub.
 export interface TUILike {
 	requestRender(): void;
+	terminal?: { rows: number; columns: number };
 }
 
 // ── QuestionState ─────────────────────────────────────────────────────────────
@@ -26,6 +27,8 @@ interface QuestionState {
 	freeTextValue: string | null;
 	/** Whether the inline Editor is currently active */
 	inEditMode: boolean;
+	/** Scroll offset — index of the first visible option in the current viewport */
+	scrollOffset: number;
 }
 
 type DisplayOption = Option & { isOther?: true };
@@ -63,6 +66,7 @@ export class AskUserQuestionComponent implements Component {
 			confirmed: false,
 			freeTextValue: null,
 			inEditMode: false,
+			scrollOffset: 0,
 		}));
 
 		const makeEditorTheme = (): EditorTheme => ({
@@ -196,7 +200,7 @@ export class AskUserQuestionComponent implements Component {
 
 	private renderQuestionBody(q: Question, state: QuestionState, width: number, add: (s: string) => void): void {
 		const t = this.theme;
-		const opts = this.allOptions(q);
+		const allOpts = this.allOptions(q);
 
 		// Question text (word-wrapped)
 		{
@@ -207,54 +211,107 @@ export class AskUserQuestionComponent implements Component {
 		}
 		add("");
 
-		// Options list
-		for (let i = 0; i < opts.length; i++) {
-			const opt = opts[i];
+		// Calculate available height for options list.
+		// Render all option lines into a buffer; slice by scrollOffset later.
+		const renderedOptions: string[] = [];
+		// Map option index → first line index in renderedOptions
+		const optionLineIndex: number[] = [];
+		for (let i = 0; i < allOpts.length; i++) {
+			optionLineIndex[i] = renderedOptions.length;
+			const opt = allOpts[i];
 			const isSelected = i === state.cursorIndex;
 			const isOther = opt.isOther === true;
 			const prefix = isSelected ? t.fg("accent", ">") : " ";
 
 			if (q.multiSelect && !isOther) {
-				// Checkbox style
 				const checked = state.selectedIndices.has(i);
 				const box = checked ? t.fg("accent", "[✓]") : t.fg("dim", "[ ]");
 				const labelColor = isSelected ? "accent" : "text";
-				add(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}`);
+				renderedOptions.push(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}`);
 			} else if (isOther) {
-				// "Type your own answer..." row — check/box matches sibling row format
 				const hasFreeText = state.freeTextValue !== null && !state.inEditMode;
 				const suffix = state.inEditMode ? t.fg("accent", " ✎") : "";
 				const labelColor = isSelected ? "accent" : "muted";
 				if (q.multiSelect) {
-					// Match multi-select box format: prefix + ' ' + box(3) + ' ' + label
 					const box = hasFreeText ? t.fg("success", "[✓]") : t.fg("dim", "[ ]");
-					add(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
+					renderedOptions.push(`${prefix} ${box} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
 				} else {
-					// Match single-select format: prefix + ' ' + check(1) + ' ' + label
 					const check = hasFreeText ? t.fg("success", "✓") : " ";
-					add(`${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
+					renderedOptions.push(`${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}${suffix}`);
 				}
-				// Preview of saved text below, no ✓ here
 				if (hasFreeText) {
 					const indent = q.multiSelect ? "       " : "     ";
 					const preview = truncateToWidth(state.freeTextValue ?? "", width - indent.length);
-					add(`${indent}${t.fg("dim", `"${preview}"`)}`);
+					renderedOptions.push(`${indent}${t.fg("dim", `"${preview}"`)}`);
 				}
 			} else {
-				// Single-select — show ✓ on the confirmed selection
 				const isConfirmedChoice = state.selectedIndex === i;
 				const check = isConfirmedChoice ? t.fg("success", "✓") : " ";
 				const labelColor = isSelected ? "accent" : "text";
-				add(`${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}`);
+				renderedOptions.push(`${prefix} ${check} ${t.fg(labelColor, `${i + 1}. ${opt.label}`)}`);
 			}
 
-			// Description (if present, not for "Type your own answer...")
 			if (!isOther && opt.description) {
 				const indent = q.multiSelect ? "       " : "     ";
 				const wrapped = wrapTextWithAnsi(t.fg("muted", opt.description), width - indent.length);
 				for (const line of wrapped) {
-					add(`${indent}${line}`);
+					renderedOptions.push(`${indent}${line}`);
 				}
+			}
+		}
+
+		// Compute viewport: available rows = terminal rows - (header/tabs lines + footer lines + editor lines)
+		// Use a generous estimate: terminal height or unlimited fallback.
+		const terminalRows = this.tui.terminal?.rows;
+		if (terminalRows) {
+			// Find how many lines we've already emitted (question text + blank line + top/bottom separators + tab bar)
+			// Recalculate based on the actual question text height.
+			// Simpler: count lines we've already added vs what we'll add below.
+			// We don't have access to the total line count easily. Let's compute from scratch.
+
+			// Re-render the header portion to count its height.
+			const headerQPart: string[] = [];
+			{
+				const wrapped = wrapTextWithAnsi(t.fg("text", ` ${q.question}`), width - 2);
+				headerQPart.push(...wrapped);
+			}
+			// header lines consumed: question text + blank line after it
+			const headerLines = headerQPart.length + 1; // +1 for the blank add("")
+
+			// Footer: 2 lines (blank + footer) when not in edit mode; 2 + editor lines + extra blank when in edit mode
+			let footerLines = 2; // blank line + footer help
+			if (state.inEditMode) {
+				footerLines += 3; // blank + "Your answer:" + editor.render lines (at least 1)
+			}
+
+			// Total consumed outside options: top separator (1) + tab bar (1) + header + footer + bottom sep (1)
+			const overheadLines = 1 + 1 + headerLines + footerLines + 1;
+			const viewportHeight = Math.max(1, terminalRows - overheadLines);
+
+			// Keep cursor in viewport
+			const cursorRenderedIdx = optionLineIndex[state.cursorIndex] ?? 0;
+			if (cursorRenderedIdx < state.scrollOffset) {
+				state.scrollOffset = cursorRenderedIdx;
+			} else if (cursorRenderedIdx >= state.scrollOffset + viewportHeight) {
+				state.scrollOffset = cursorRenderedIdx - viewportHeight + 1;
+			}
+			state.scrollOffset = Math.max(0, Math.min(state.scrollOffset, Math.max(0, renderedOptions.length - viewportHeight)));
+
+			// Slice visible options
+			if (state.scrollOffset > 0) {
+				add(t.fg("dim", ` ↑ ${state.scrollOffset} more above`));
+			}
+			const endIdx = Math.min(renderedOptions.length, state.scrollOffset + viewportHeight);
+			for (let i = state.scrollOffset; i < endIdx; i++) {
+				add(renderedOptions[i]);
+			}
+			if (endIdx < renderedOptions.length) {
+				add(t.fg("dim", ` ↓ ${renderedOptions.length - endIdx} more below`));
+			}
+		} else {
+			// No terminal info — render all options
+			for (const line of renderedOptions) {
+				add(line);
 			}
 		}
 
@@ -274,7 +331,7 @@ export class AskUserQuestionComponent implements Component {
 		if (state.inEditMode) {
 			add(t.fg("dim", " Enter submit · Esc back"));
 		} else {
-			const onOther = state.cursorIndex === opts.length - 1;
+			const onOther = state.cursorIndex === allOpts.length - 1;
 			const tabHint = " · ←→ switch tabs";
 			let actionHint: string;
 			if (onOther) {
@@ -284,7 +341,8 @@ export class AskUserQuestionComponent implements Component {
 			} else {
 				actionHint = "Enter select";
 			}
-			add(t.fg("dim", ` ↑↓ navigate · ${actionHint}${tabHint} · Esc cancel`));
+			const scrollHint = allOpts.length > 4 ? " · PgUp/PgDn scroll" : "";
+			add(t.fg("dim", ` ↑↓ navigate · ${actionHint}${tabHint}${scrollHint} · Esc cancel`));
 		}
 	}
 
@@ -349,6 +407,34 @@ export class AskUserQuestionComponent implements Component {
 		const state = this.states[this.activeTab];
 		const max = this.allOptions(q).length - 1;
 		state.cursorIndex = Math.max(0, Math.min(max, state.cursorIndex + delta));
+		// Keep cursor in viewport — scrollOffset will be clamped in renderQuestionBody
+		const terminalRows = this.tui.terminal?.rows;
+		if (terminalRows) {
+			// Simple heuristic: if cursor moves above scrollOffset, bring scrollOffset up;
+			// if below visible area, push it down. The precise clip happens in renderQuestionBody.
+			if (state.cursorIndex < state.scrollOffset) {
+				state.scrollOffset = state.cursorIndex;
+			} else {
+				// Estimate viewport height (will be precise in render)
+				const approxOverhead = 6; // top sep + tab bar + question + blank + footer + bottom sep
+				const approxViewport = Math.max(1, terminalRows - approxOverhead);
+				if (state.cursorIndex >= state.scrollOffset + approxViewport) {
+					state.scrollOffset = state.cursorIndex - approxViewport + 1;
+				}
+			}
+		}
+		this.invalidate();
+		this.tui.requestRender();
+	}
+
+	private pageCursor(dir: -1 | 1): void {
+		const q = this.questions[this.activeTab];
+		const state = this.states[this.activeTab];
+		const max = this.allOptions(q).length - 1;
+		const terminalRows = this.tui.terminal?.rows ?? 24;
+		const pageSize = Math.max(1, terminalRows - 8); // approximate visible options
+		state.cursorIndex = Math.max(0, Math.min(max, state.cursorIndex + dir * pageSize));
+		state.scrollOffset = state.cursorIndex;
 		this.invalidate();
 		this.tui.requestRender();
 	}
@@ -610,6 +696,16 @@ export class AskUserQuestionComponent implements Component {
 
 		if (matchesKey(data, Key.down)) {
 			this.moveCursor(1);
+			return;
+		}
+
+		if (matchesKey(data, Key.pageUp)) {
+			this.pageCursor(-1);
+			return;
+		}
+
+		if (matchesKey(data, Key.pageDown)) {
+			this.pageCursor(1);
 			return;
 		}
 

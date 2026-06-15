@@ -24,7 +24,7 @@ export default function (pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "ask_user_question",
 		label: "Ask User",
-		description: `Ask the user 1–32 clarifying questions before proceeding.
+		description: `Ask the user 1 or more clarifying questions before proceeding.
 LLMs can create as many queries as needed — don't hesitate to ask multiple focused questions.
 After the user reviews their answers on the Submit tab, they can optionally leave a free-text comment before submitting.
 Use this tool to:
@@ -32,7 +32,7 @@ Use this tool to:
 2. Get the user's preference between valid approaches
 3. Make decisions on implementation choices
 4. Offer choices about what direction to take
-Each question must have 2–4 options. Users can always select "Other" to type a free-text answer, so do not include an "Other" option yourself.
+Each question must have 2 or more options. Users can always select "Other" to type a free-text answer, so do not include an "Other" option yourself.
 Option labels should be concise (1–5 words).
 Set multiSelect: true when more than one option can validly apply at the same time.
 The header field is a short label (max 12 characters) used in the tab bar when showing multiple questions. Defaults to first 12 chars of question text if omitted.

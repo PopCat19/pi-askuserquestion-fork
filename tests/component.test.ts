@@ -1565,7 +1565,7 @@ describe("coverage — schema.ts", () => {
 		expect(QuestionSchema.properties.options).toBeDefined();
 		expect(QuestionSchema.properties.multiSelect).toBeDefined();
 		expect(QuestionSchema.properties.options.minItems).toBe(2);
-		expect(QuestionSchema.properties.options.maxItems).toBe(4);
+		expect(QuestionSchema.properties.options.maxItems).toBeUndefined();
 	});
 
 	it("InputSchema accepts loose questions (constraints enforced by autoFix)", () => {
